@@ -1,405 +1,498 @@
-# Compass Agents & Skills Specification
+# Compass Agents & Skills Specification (AGENTS.md)
 
-> **Version**: v0.1.0 | **Updated**: 2026-01-30
-
-이 문서는 Compass에서 사용하는 **에이전트, 스킬, 훅**의 설계 명세입니다.
-
----
-
-## Table of Contents
-
-1. [Design Philosophy](#design-philosophy)
-2. [Skills](#skills)
-3. [Sub-Agents](#sub-agents)
-4. [Hooks](#hooks)
-5. [Routing Rules](#routing-rules)
-6. [Extension Points](#extension-points)
+> **Version**: v0.1.1 | **Updated**: 2026-01-30  
+> 이 문서는 Compass가 제공(또는 생성)하는 **스킬(Commands), 서브에이전트(Subagents), 훅(Hooks)** 의 “실행 계약”입니다.
 
 ---
 
-## Design Philosophy
+## 0) Scope
 
-### 자동화 선택 기준
-
-Compass는 **무조건 많이** 자동화하지 않습니다. 관측 데이터를 기반으로 **필요한 것만** 추천합니다.
-
-| 패턴 유형 | 자동화 메커니즘 | 예시 |
-|-----------|----------------|------|
-| 반복되는 "말" | **Skill** | "계획 세워줘", "테스트 돌려줘" |
-| 자주 까먹는 습관 | **Hook** | 커밋 전 테스트, 저장 전 린트 |
-| 외부 시스템 접근 반복 | **MCP** | Jira, Notion, GitHub Issues |
-| 역할 분업 필요 | **Sub-agent** | 리뷰어, 보안 검토, 테스트 생성 |
-
-### 안전 원칙
-
-1. **기본은 최소 훅**: 필수 4개만 (UserPromptSubmit, Stop, PreCompact, PreToolUse)
-2. **추천은 Top 3**: 과부하 방지
-3. **실패 시 자동 비활성**: 서킷 브레이커 패턴
-4. **개인 설정 우선**: `.local` 파일로 안전하게 실험
+- “무엇을 자동화할지”를 번들링하는 문서가 아니라,
+  **관측 → 진단 → 추천/생성 → 검증/튜닝**을 닫힌 고리로 운용하기 위한 **운영 레이어 정의서**입니다.
+- 구현체(CLI/플러그인/스크립트)가 바뀌어도, 이 문서의 **I/O 계약과 파일 구조**는 최대한 유지합니다.
 
 ---
 
-## Skills
+## 1) Design Principles
 
-스킬은 **반복되는 말(프롬프트 패턴)**을 자동화합니다.
+### 1.1 자동화 선택 기준 (Routing)
+| 패턴 유형 | 우선 메커니즘 | 예시 |
+|---|---|---|
+| 반복되는 “말” | **Skill** | “계획 세워줘”, “영향도 분석해줘” |
+| 자주 까먹는 습관 | **Hook** | Stop 시 테스트 게이트 |
+| 외부 시스템 참조 반복 | **MCP** | Jira/Notion/GitHub 검색 반복 |
+| 역할 분업 필요 | **Sub-agent** | reviewer, security, tester |
+| 여러 프로젝트 배포 | Plugin/Command 패키징(후순위) | 팀 배포용 |
 
-### Core Skills (Built-in)
+### 1.2 안전 원칙
+1. **기본은 최소 훅(3개)**: UserPromptSubmit, PreCompact, Stop  
+   - PreToolUse(위험 차단), PostToolUse(추적 강화)는 **옵션**
+2. **추천은 Top 3 기본값**  
+   - Pro/Lab 모드에서만 Top 5까지 확장 가능
+3. **개인 설정 우선(.local)**  
+   - 적용/실험은 `.claude/settings.local.json` 등 로컬 우선
+4. **서킷 브레이커**  
+   - 동일 자동화가 반복 실패/방해하면 자동 비활성 + 이유 기록
+5. **프라이버시 기본값 보수적**  
+   - 원문 프롬프트/시크릿 저장 금지(요약/해시만)
 
-#### `/spec new`
+---
 
-새 스펙을 생성하고 PIN을 설정합니다.
+## 2) Data Artifacts (파일 계약)
+
+### 2.1 Spec & Work
+- `.ai/specs/SPEC-YYYYMMDD-<slug>.md` : 스펙 원문(변경 로그 포함)
+- `.ai/work/pin.md` : 항상 얇게 로드되는 PIN(5개 항목만)
+- `.ai/work/current.json` : 현재 활성 스펙 포인터
+
+#### `current.json` (권장 스키마)
+```json
+{
+  "active_spec": ".ai/specs/SPEC-20260130-compass-mvp.md",
+  "pin": ".ai/work/pin.md",
+  "title": "Compass MVP",
+  "tags": ["mvp", "spec-system"],
+  "updated_at": "2026-01-30T10:21:33+09:00"
+}
+```
+
+### 2.2 Trace
+- `.ai/trace/trace.jsonl` : 공유 가능한 “요약 Trace” (1줄=1이벤트)
+
+#### `trace.jsonl` (초안 스키마)
+```json
+{
+  "ts": "2026-01-30T10:21:33+09:00",
+  "session_id": "abc",
+  "event": "PostToolUse",
+  "tool": "Edit",
+  "files": ["src/auth/login.ts"],
+  "result": "success",
+  "tests": { "ran": true, "cmd": "pnpm test auth", "status": "pass" },
+  "policy": { "complexity_score": 42, "gate_level": 2 },
+  "automation": {
+    "hooks_fired": ["quality-gate"],
+    "skills_used": ["spec-condense"]
+  },
+  "notes": "edited login flow"
+}
+```
+
+**민감정보 금지**: 시크릿/토큰/개인정보/원문 프롬프트를 넣지 않습니다.
+
+### 2.3 Personal telemetry (개인 전용)
+- `~/.compass/<project-id>/telemetry.db` : 개인 최적화 통계/피드백(Repo에 커밋 금지)
+
+---
+
+## 3) Skills (Commands)
+
+> 표기는 “UX 명령” 기준입니다. 구현은 (A) Claude Code 플러그인 Commands, (B) `compass` CLI, (C) 둘의 혼합일 수 있습니다.
+
+### 3.1 `/spec new <title>`
+새 스펙 + PIN + current 포인터를 생성합니다.
 
 ```yaml
 name: spec-new
 trigger: /spec new <title>
-description: 새로운 스펙 파일과 PIN을 생성합니다
 inputs:
   - title: string (required)
-outputs:
+writes:
   - .ai/specs/SPEC-{date}-{slug}.md
   - .ai/work/pin.md
   - .ai/work/current.json
+acceptance:
+  - pin.md가 5개 항목만 포함
+  - SPEC 파일에 Change Log 섹션 존재
 ```
 
-**동작**:
-1. 사용자 요청을 구조화된 스펙 템플릿으로 변환
-2. `.ai/specs/SPEC-YYYYMMDD-<slug>.md` 생성
-3. PIN 생성 (Goal, Must-have, Constraints, Acceptance Criteria, Pointer)
-4. `current.json`에 활성 스펙 포인터 저장
+**SPEC 템플릿(요약)**
+- Goal
+- Must-have (≤5)
+- Nice-to-have (≤5)
+- Constraints
+- Acceptance Criteria
+- Notes / Decisions
+- Change Log (append-only)
 
 ---
 
-#### `/spec condense`
-
-긴 요구사항을 구조화된 스펙으로 압축합니다.
+### 3.2 `/spec condense`
+현재 요청(또는 제공된 요구사항)을 **Spec Condense 포맷**으로 구조화합니다.
 
 ```yaml
 name: spec-condense
 trigger: /spec condense
-description: 현재 대화의 요구사항을 구조화된 스펙으로 압축
 inputs:
-  - context: 현재 대화 컨텍스트 (자동)
+  - context: current conversation (implicit)
+writes:
+  - (optional) .ai/specs/SPEC-{date}-{slug}.md
+  - (optional) .ai/work/pin.md
 outputs:
-  - 구조화된 스펙 (Goal, Must-have, Constraints, Acceptance Criteria)
-```
-
-**PIN 규격** (항상 이 5개만):
-```markdown
-## PIN: {title}
-
-### Goal
-[1-2줄 목표]
-
-### Must-have
-- [ ] 필수 요구사항 1
-- [ ] 필수 요구사항 2
-(최대 5개)
-
-### Constraints
-- 환경/보안/금지사항
-
-### Acceptance Criteria
-- 완료 판정 기준
-
-### Pointer
-→ .ai/specs/SPEC-{date}-{slug}.md
+  - Goal / Must-have / Nice-to-have / Constraints / Acceptance Criteria
+rules:
+  - Must-have는 최대 5개
+  - Acceptance Criteria가 없으면 생성(완료 판정 가능하게)
 ```
 
 ---
 
-#### `/coach scan`
-
-최근 세션을 분석하여 자동화 후보를 추천합니다.
+### 3.3 `/spec status`
+활성 스펙의 현재 상태를 보여줍니다.
 
 ```yaml
-name: coach-scan
-trigger: /coach scan
-description: 최근 N 세션을 분석하여 자동화 후보 Top 5 추천
-inputs:
-  - sessions: number (default: 10)
+name: spec-status
+trigger: /spec status
+reads:
+  - .ai/work/current.json
+  - .ai/work/pin.md
 outputs:
-  - 자동화 후보 리스트 (id, type, reason, impact_score)
-```
-
-**분석 대상**:
-- 반복 프롬프트 패턴
-- 반복 시퀀스 (수정 → 테스트 → 포맷)
-- 반복 실패 (같은 테스트/린트 에러)
-- 비용/토큰 급증 구간
-
-**출력 예시**:
-```markdown
-## 자동화 후보 (Top 5)
-
-| # | Type | 추천 | Impact |
-|---|------|-----|--------|
-| 1 | Hook | Stop에 테스트 자동 게이트 추가 | ★★★★☆ |
-| 2 | Skill | "영향도 분석" 스킬 생성 | ★★★☆☆ |
-| 3 | Sub-agent | reviewer 서브에이전트 추가 | ★★★☆☆ |
-
-적용: `/coach apply 1`
+  - active_spec, last_updated, Must 체크 상태, Acceptance 요약
 ```
 
 ---
 
-#### `/trace stats`
+### 3.4 `/trace last [n]`
+최근 n개 Trace 이벤트를 타임라인으로 보여줍니다(기본 10).
 
-관측 데이터의 통계 요약을 보여줍니다.
+```yaml
+name: trace-last
+trigger: /trace last [n]
+reads:
+  - .ai/trace/trace.jsonl
+outputs:
+  - ts, event, tool, files, result, notes
+```
+
+---
+
+### 3.5 `/trace why [event_id|tail]`
+“왜 이 자동화가 실행됐는지”를 설명합니다.
+
+```yaml
+name: trace-why
+trigger: /trace why [event]
+reads:
+  - .ai/trace/trace.jsonl
+outputs:
+  - 어떤 규칙/점수 때문에 어떤 hooks/skills가 실행되었는지 (3줄 내)
+```
+
+---
+
+### 3.6 `/trace stats [period]`
+관측 통계를 요약합니다.
 
 ```yaml
 name: trace-stats
 trigger: /trace stats [period]
-description: 지정 기간의 관측 통계 요약
 inputs:
-  - period: string (default: "7d", options: "1d", "7d", "30d")
+  - period: "1d" | "7d" | "30d" (default: "7d")
 outputs:
-  - 실패율, 테스트 누락률, 반복 패턴 Top N
+  - 실패율, 테스트 누락률, 반복 패턴 Top N, 비용 스파이크(가능 시)
 ```
 
 ---
 
-### Generated Skills (Coach가 생성)
+### 3.7 `/coach scan [sessions] [--top N]`
+최근 N 세션/이벤트를 분석하여 자동화 후보를 추천합니다.
 
-Coach는 패턴 감지 후 사용자 맞춤 스킬을 생성할 수 있습니다.
-
-**생성 템플릿**:
 ```yaml
-name: {auto-generated}
-trigger: /{name}
-description: {pattern description}
-inputs: {extracted from pattern}
-outputs: {expected results}
-source: coach-generated
-created_at: {timestamp}
-stats:
-  usage_count: 0
-  success_rate: 0
+name: coach-scan
+trigger: /coach scan [sessions] [--top N]
+inputs:
+  - sessions: number (default: 10)
+  - top: number (default: 3, max: 5)
+outputs:
+  - candidates: [{id, type, title, reason, impact_score, risk_level}]
+rules:
+  - 기본은 Top 3만 출력
+  - 각 후보는 "적용 방법 + 롤백 방법" 포함
+```
+
+**분석 신호**
+- 반복 프롬프트/반복 시퀀스/반복 실패/외부 참조 반복/토큰·비용 급증(가능 시)
+
+---
+
+### 3.8 `/coach apply <id>`
+후보를 “안전하게” 적용합니다.
+
+```yaml
+name: coach-apply
+trigger: /coach apply <id>
+writes:
+  - (prefer) .claude/settings.local.json
+  - (sometimes) .claude/rules/*.md
+  - (sometimes) .mcp.json
+  - snapshot: ~/.compass/<project-id>/snapshots/<id>/
+outputs:
+  - 변경 파일 목록 + diff 프리뷰
+  - rollback 명령/경로
+rules:
+  - 로컬 우선 적용(.local)
+  - 공유 파일 변경 시 명시적으로 알림
 ```
 
 ---
 
-## Sub-Agents
+### 3.9 `/coach rollback <id>`
+적용을 되돌립니다(스냅샷 기반).
 
-서브에이전트는 **역할 분업**이 필요할 때 사용합니다.
+```yaml
+name: coach-rollback
+trigger: /coach rollback <id>
+reads:
+  - ~/.compass/<project-id>/snapshots/<id>/
+writes:
+  - 변경 파일 원복
+outputs:
+  - rollback 결과(성공/실패, 원복 파일 목록)
+```
 
-### Reviewer Agent
+---
 
-코드 리뷰를 전담하는 에이전트입니다.
+### 3.10 `/coach report [period]`
+적용 전/후 효과 리포트를 생성합니다.
 
+```yaml
+name: coach-report
+trigger: /coach report [period]
+reads:
+  - .ai/trace/trace.jsonl
+  - ~/.compass/<project-id>/telemetry.db (if exists)
+outputs:
+  - 테스트 누락률 변화, 반복 실패 변화, 반복 요청 변화
+```
+
+---
+
+### 3.11 `/coach mode simple|pro|lab`
+노출 수준을 바꿉니다.
+
+- `simple`: 추천/적용 중심(점수/규칙 노출 최소)
+- `pro`: why/trace/점수 노출
+- `lab`: 룰 엔진/임계치 튜닝 허용
+
+---
+
+### 3.12 `/guard status` / `/guard run`
+품질 게이트 상태 확인 및 수동 실행.
+
+```yaml
+name: guard-status
+trigger: /guard status
+outputs:
+  - gate_level, last_run, last_result, suggested_next_gate
+
+name: guard-run
+trigger: /guard run [level]
+outputs:
+  - 실행 커맨드, 결과 요약, 실패 시 원인/다음 조치
+```
+
+---
+
+## 4) Sub-Agents
+
+> 서브에이전트는 “역할 분업”을 위한 프리셋입니다. (구현: Claude Code Subagents 또는 내부 오케스트레이션)
+
+### 4.1 `reviewer`
 ```yaml
 name: reviewer
 role: Code Reviewer
 trigger: /review [files]
-description: 지정된 파일 또는 staged 변경사항을 리뷰
-capabilities:
-  - 코드 품질 분석
-  - 버그 가능성 탐지
-  - 보안 취약점 체크
-  - 테스트 커버리지 확인
-context_requirements:
-  - 프로젝트 코딩 컨벤션 (.claude/rules/)
-  - 최근 관련 커밋 히스토리
+focus:
+  - 코드 품질/가독성
+  - 버그 가능성/엣지 케이스
+  - 테스트 누락 및 회귀 위험
 output_format: |
   ## Review Summary
-  - 변경 파일: {count}
-  - 심각도: {Critical|Warning|Info}
+  - Files: {count}
+  - Severity: {Critical|Warning|Info}
 
   ## Findings
-  | File | Line | Severity | Issue |
-  |------|------|----------|-------|
+  | File | Severity | Issue | Suggestion |
+  |------|----------|-------|------------|
 
-  ## Recommendations
+  ## Next
+  - ...
+```
+
+### 4.2 `security`
+```yaml
+name: security
+role: Security Reviewer
+trigger: /security [scope]
+focus:
+  - 하드코딩 시크릿/민감정보
+  - 권한/인증/인가 흐름
+  - 위험 명령/데이터 파괴 가능성
+output_format: |
+  ## Security Scan
+  - Risk: {High|Medium|Low}
+  - Findings: {count}
+
+  ## Details
+  - ...
+```
+
+### 4.3 `tester`
+```yaml
+name: tester
+role: Test Engineer
+trigger: /test [target]
+focus:
+  - 영향도 기반 테스트 계획
+  - 엣지 케이스 도출
+  - 실패 원인 분석 및 회귀 방지
+output_format: |
+  ## Test Plan / Results
+  - Target: {target}
+  - Ran: {cmd}
+  - Result: {pass|fail}
+
+  ## Added / Updated Tests
   - ...
 ```
 
 ---
 
-### Security Agent
+## 5) Hooks
 
-보안 관점에서 코드를 검토합니다.
+### 5.1 Hook config (Claude Code settings 형식)
 
-```yaml
-name: security
-role: Security Reviewer
-trigger: /security [scope]
-description: 보안 취약점 및 민감 정보 노출 검토
-capabilities:
-  - OWASP Top 10 체크
-  - 하드코딩된 시크릿 탐지
-  - 의존성 취약점 확인
-  - 권한 에스컬레이션 가능성
-context_requirements:
-  - 보안 정책 문서
-  - 환경 설정 파일
-output_format: |
-  ## Security Scan Results
-  - Risk Level: {High|Medium|Low}
-  - Vulnerabilities Found: {count}
-
-  ## Details
-  ...
-```
-
----
-
-### Test Agent
-
-테스트 생성 및 검증을 전담합니다.
-
-```yaml
-name: tester
-role: Test Engineer
-trigger: /test [target]
-description: 테스트 생성, 실행, 커버리지 분석
-capabilities:
-  - 유닛 테스트 생성
-  - 엣지 케이스 도출
-  - 테스트 실행 및 결과 분석
-  - 커버리지 리포트
-context_requirements:
-  - 테스트 프레임워크 설정
-  - 기존 테스트 패턴
-output_format: |
-  ## Test Results
-  - Total: {count}
-  - Passed: {count}
-  - Failed: {count}
-  - Coverage: {percent}%
-
-  ## New Tests Generated
-  ...
-```
-
----
-
-## Hooks
-
-훅은 **자동 트리거**되는 품질 게이트입니다. Compass는 **최소 4개**만 권장합니다.
-
-### Hook Configuration Schema
+훅은 아래 형태로 설정됩니다(“matcher → hooks 배열”). 예시는 `.claude/settings.local.json`에 두고 실험하는 것을 권장합니다.
 
 ```json
 {
   "hooks": {
-    "{event}": [
+    "UserPromptSubmit": [
       {
-        "name": "{hook-name}",
-        "matcher": "{tool-pattern}",
-        "command": "{script-path}",
-        "timeout": 30000,
-        "enabled": true
+        "matcher": "*",
+        "hooks": [
+          { "type": "command", "command": "compass hook pin-inject" }
+        ]
       }
     ]
   }
 }
 ```
 
----
+### 5.2 Hook I/O 계약 (스크립트)
 
-### 1. UserPromptSubmit Hook
+- 입력: **stdin으로 JSON** (tool/prompt 정보 포함)
+- 출력: `stdout`(plain text 또는 JSON), 종료 코드
+  - `exit 0`: 정상(선택적으로 JSON 제어 가능)
+  - `exit 2`: 차단(blocking error). `stderr`가 사용자/Claude에게 표시됨(단순 차단에 유용)
 
-사용자 입력 시 PIN/스펙 포인터를 컨텍스트에 주입합니다.
-
+#### 공통 JSON 필드(옵션)
 ```json
 {
-  "event": "UserPromptSubmit",
-  "name": "pin-inject",
-  "command": "compass hook pin-inject",
-  "description": "활성 스펙의 PIN을 컨텍스트에 주입"
+  "continue": true,
+  "stopReason": "string",
+  "suppressOutput": true,
+  "systemMessage": "string"
 }
 ```
 
-**동작**:
-1. `.ai/work/current.json` 확인
-2. 활성 스펙이 있으면 `pin.md` 내용을 `additionalContext`로 반환
-3. 없으면 패스
+> `continue=false`는 해당 단계 전체를 멈추는 강한 제어입니다. (특정 툴만 막을 때는 PreToolUse의 permissionDecision을 우선 사용)
 
 ---
 
-### 2. Stop Hook (Quality Gate)
+### 5.3 Required hooks (Core loop)
 
-응답 완료 시 품질 게이트를 실행합니다.
+#### (1) UserPromptSubmit — `pin-inject`
+- 목적: 매 입력 시 “북극성(PIN)”을 컨텍스트에 주입
 
+권장 동작:
+1) `.ai/work/current.json` 확인  
+2) 활성 스펙이 있으면 `.ai/work/pin.md` 내용을 `additionalContext`로 추가  
+3) 없으면 아무 것도 하지 않음
+
+(JSON 방식 예시)
 ```json
 {
-  "event": "Stop",
-  "name": "quality-gate",
-  "command": "compass hook quality-gate",
-  "description": "lint, typecheck, test 실행 및 검증"
+  "hookSpecificOutput": {
+    "hookEventName": "UserPromptSubmit",
+    "additionalContext": "<PIN CONTENTS>"
+  }
 }
 ```
 
-**동작**:
-1. 변경된 파일 감지
-2. 해당 파일에 대한 lint/typecheck 실행
-3. 관련 테스트 실행 (영향도 기반)
-4. 실패 시 피드백 반환, 성공 시 패스
+---
 
-**게이트 레벨** (설정 가능):
-- Level 0: 없음 (비권장)
-- Level 1: lint만
-- Level 2: lint + typecheck (기본)
-- Level 3: lint + typecheck + affected tests
+#### (2) PreCompact — `spec-sync`
+- 목적: 컴팩트 전에 진행/결정 사항을 pin/spec에 반영
+
+권장 동작:
+1) 최근 작업/결정 사항을 요약  
+2) `pin.md`는 얇게 업데이트(완료 체크/Acceptance 보강)  
+3) SPEC Change Log에 append
 
 ---
 
-### 3. PreCompact Hook
+#### (3) Stop — `quality-gate`
+- 목적: 응답 종료 시 품질 게이트 실행/검증
 
-컴팩트 전 PIN/스펙을 업데이트합니다.
+권장 Gate Level
+- L1: lint
+- L2: lint + typecheck (기본)
+- L3: lint + typecheck + affected tests
 
+Stop 훅은 “멈추지 않고 더 진행하도록(Claude가 계속 작업하도록)” 강제할 수 있습니다.
+
+(JSON 방식 예시)
 ```json
 {
-  "event": "PreCompact",
-  "name": "spec-sync",
-  "command": "compass hook spec-sync",
-  "description": "컴팩트 전 진행 상황을 PIN에 반영"
+  "decision": "block",
+  "reason": "테스트가 실행되지 않았습니다. 우선 `pnpm test`(또는 동등) 실행 후 다시 종료하세요."
 }
 ```
 
-**동작**:
-1. 현재 대화에서 완료된 작업/결정 사항 추출
-2. `pin.md` 업데이트 (Must-have 체크박스 등)
-3. `SPEC.md`에 변경 로그 추가
-
 ---
 
-### 4. PreToolUse Hook (Optional)
+### 5.4 Optional safety hook
 
-위험 명령을 차단하거나 확인을 요청합니다.
+#### PreToolUse — `safety-guard` (옵션)
+- 목적: 위험한 툴/명령을 deny/ask로 제어하고, 안전한 명령은 allow/approve
+
+**권장 매처**
+- `Bash` (쉘)
+- (추가) `Write`, `Edit` 등 파일 파괴 위험이 있는 경우
+
+차단(deny) 예시:
+- `rm -rf /`, `rm -rf ~`, `drop table`, prod deploy 등
+
+PreToolUse는 특정 툴 실행만 제어하는 방식으로 출력합니다.
 
 ```json
 {
-  "event": "PreToolUse",
-  "name": "safety-guard",
-  "matcher": "Bash",
-  "command": "compass hook safety-guard",
-  "description": "위험 명령 차단/확인"
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "ask",
+    "permissionDecisionReason": "파괴적 명령 가능성이 있어 확인이 필요합니다.",
+    "updatedInput": {
+      "command": "rm -i <...>"
+    },
+    "additionalContext": "주의: destructive operation"
+  }
 }
 ```
 
-**차단 패턴** (deny):
-- `rm -rf /`, `rm -rf ~`, `rm -rf .`
-- `DROP TABLE`, `DELETE FROM ... WHERE 1=1`
-- `--force` with destructive commands
-- 프로덕션 배포 명령
+---
 
-**확인 패턴** (ask):
-- `git push --force`
-- `npm publish`
-- 환경 변수 수정
+### 5.5 Optional trace hooks (가시성 강화)
 
-**자동 승인 패턴** (allow):
-- `pnpm test`, `npm test`, `vitest`
-- `pnpm lint`, `eslint`
-- `pnpm build`
+- `SessionStart`: 세션 시작 요약(활성 스펙/게이트 레벨 등)
+- `PostToolUse` / `PostToolUseFailure`: 툴 실행 결과를 trace.jsonl에 기록
+- `SessionEnd`: 세션 요약 기록(실패/테스트/다음 액션)
+
+> Trace는 “항상 가능”해야 하므로, OTel이 없을 때는 위 훅들로 최소 기능을 보완합니다.
 
 ---
 
-## Routing Rules
-
-Coach가 자동화 메커니즘을 선택하는 규칙입니다.
-
-### Pattern → Mechanism Mapping
+## 6) Routing Rules (Coach의 선택 규칙)
 
 ```yaml
 routing_rules:
@@ -408,19 +501,14 @@ routing_rules:
     action: "suggest_skill"
     priority: high
 
-  # 반복 시퀀스 → Skill or Hook
-  - pattern: "sequence_edit_test_format"
-    action: "suggest_hook_or_skill"
-    priority: medium
-
-  # 반복 실패 → Hook (품질 게이트)
+  # 반복 실패 → Stop Hook 강화
   - pattern: "same_test_fail_3x"
     action: "suggest_hook"
-    hook_type: "Stop"
+    hook_event: "Stop"
     priority: high
 
-  # 외부 시스템 반복 → MCP
-  - pattern: "external_api_5x_in_session"
+  # 외부 참조 반복 → MCP 추천
+  - pattern: "external_lookup_5x_in_session"
     action: "suggest_mcp"
     priority: medium
 
@@ -430,95 +518,54 @@ routing_rules:
     priority: low
 ```
 
-### Impact Score Calculation
-
+### Impact Score (초기 가중치)
 ```yaml
 impact_factors:
-  - frequency: 0.4      # 발생 빈도
-  - time_saved: 0.3     # 예상 절약 시간
-  - error_reduction: 0.2 # 에러 감소 효과
-  - complexity: 0.1     # 구현 복잡도 (역수)
+  - frequency: 0.4
+  - time_saved: 0.3
+  - error_reduction: 0.2
+  - complexity: 0.1
 ```
 
 ---
 
-## Extension Points
+## 7) Extension Points
 
-Compass는 확장 가능한 구조로 설계됩니다.
-
-### Custom Skill Registration
-
-```typescript
-interface SkillDefinition {
+### 7.1 Custom skill registration (개념 인터페이스)
+```ts
+export interface SkillDefinition {
   name: string;
   trigger: string;
   description: string;
-  handler: (input: SkillInput) => Promise<SkillOutput>;
+  handler: (input: unknown) => Promise<unknown>;
   metadata?: {
-    source: 'builtin' | 'coach-generated' | 'user-defined';
+    source: "builtin" | "coach-generated" | "user-defined";
     createdAt: string;
-    stats?: SkillStats;
+    usageCount?: number;
+    successRate?: number;
   };
 }
 ```
 
-### Custom Hook Registration
-
-```typescript
-interface HookDefinition {
-  event: HookEvent;
-  name: string;
-  matcher?: string;
-  handler: (input: HookInput) => Promise<HookOutput>;
-  timeout?: number;
-  enabled?: boolean;
-}
-
-type HookEvent =
-  | 'SessionStart'
-  | 'UserPromptSubmit'
-  | 'PreToolUse'
-  | 'PostToolUse'
-  | 'Stop'
-  | 'PreCompact'
-  | 'SessionEnd';
-
-interface HookOutput {
-  decision?: 'allow' | 'deny' | 'ask';
-  reason?: string;
-  additionalContext?: string;
-  updatedInput?: Record<string, unknown>;
-}
-```
-
-### Custom Sub-Agent Registration
-
-```typescript
-interface SubAgentDefinition {
-  name: string;
-  role: string;
-  trigger: string;
-  description: string;
-  capabilities: string[];
-  contextRequirements: string[];
-  outputFormat: string;
-  handler: (input: AgentInput) => Promise<AgentOutput>;
-}
-```
+### 7.2 Hook adapter (Claude Code I/O에 맞춘 어댑터)
+- 표준 입력(stdin JSON)을 내부 `HookContext`로 변환
+- 표준 출력(JSON/exit code)을 Claude Code 규약에 맞게 변환
 
 ---
 
 ## Version History
 
-| Version | Date       | Changes                                    |
-|---------|------------|--------------------------------------------|
-| v0.1.0  | 2026-01-30 | Initial specification                      |
+| Version | Date       | Changes |
+|---------|------------|---------|
+| v0.1.1  | 2026-01-30 | PRD v0.1 정합성 반영(Top3 기본, 명령/훅 계약 보강, 설정 스키마 최신화) |
+| v0.1.0  | 2026-01-30 | Initial specification |
 
 ---
 
-## References
+## References (raw links)
 
-- [PRD](./docs/00_start_here.md) - 제품 요구사항 정의
-- [CLAUDE.md](./CLAUDE.md) - 프로젝트 지침
-- [Claude Code Hooks](https://code.claude.com/docs/en/hooks)
-- [Claude Code Memory](https://code.claude.com/docs/en/memory)
+- https://code.claude.com/docs/en/hooks
+- https://code.claude.com/docs/en/memory
+- https://code.claude.com/docs/en/settings
+- https://code.claude.com/docs/en/monitoring-usage
+- https://code.claude.com/docs/en/mcp
