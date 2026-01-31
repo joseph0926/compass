@@ -55,6 +55,7 @@ Compass는 Claude Code가 이미 제공하는 **공식 메커니즘** 위에서 
 - PreToolUse는 **도구 실행을 allow/deny/ask로 제어**, 입력 수정(updatedInput), 컨텍스트 주입(additionalContext)까지 가능합니다. ([Claude Code](https://code.claude.com/docs/en/hooks))
 - 훅은 `~/.claude/settings.json`, `.claude/settings.json`, `.claude/settings.local.json` 등 settings 계층에서 관리됩니다. ([Claude Code](https://code.claude.com/docs/en/hooks))
 - 훅은 자동 실행이므로 보안 위험(자격증명/환경 접근)을 고려해야 한다는 경고가 공식 문서에 있습니다. ([Claude Code](https://code.claude.com/docs/en/hooks-guide))
+- hook command는 `"$CLAUDE_PROJECT_DIR"/node_modules/.bin/compass ...` 형태를 표준으로 사용합니다.
 
 → Compass는 훅을 “많이” 쓰지 않고, **딱 필요한 곳(거버너/관측/스펙 핀 유지)**에만 씁니다.
 
@@ -113,18 +114,21 @@ Compass는 4개 모듈을 “닫힌 고리”로 연결합니다.
   "session_id": "abc",
   "event": "PostToolUse",
   "tool": "Edit",
+  "call_id": "tool_use_id",
   "matcher": "Write|Edit",
   "files": ["src/auth/login.ts"],
   "result": "success",
   "tests": { "ran": true, "cmd": "pnpm test auth", "status": "pass" },
   "policy": { "complexity_score": 42, "gate_level": 2 },
   "automation": {
-    "hooks_fired": ["guard-stop-tests"],
+    "hooks_fired": ["PostToolUse/trace-write"],
     "skills_used": ["spec-condense"]
   },
   "notes": "edited login flow"
 }
 ```
+
+- `session_id`는 trace.jsonl의 canonical 필드입니다. tool 이벤트인 경우 `call_id`(= tool_use_id)를 옵션으로 기록합니다.
 
 ### 사용자 UX
 
@@ -271,7 +275,7 @@ PIN은 절대 길어지면 안 됩니다.
 
 ### 개인화 UX (명령 체계)
 
-- `/coach scan` : 최근 N세션 분석 → 자동화 후보 Top 5
+- `/coach scan` : 최근 N세션 분석 → 자동화 후보 Top N(기본 3, 최대 5)
 - `/coach apply <id>` : 후보 적용(패치 프리뷰 포함)
 - `/coach rollback <id>` : 자동화 되돌리기
 - `/coach report` : “적용 후 효과” 리포트(테스트 누락률↓, 반복 요청↓ 등)

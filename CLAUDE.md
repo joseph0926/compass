@@ -5,7 +5,7 @@
 
 # Compass Coach & Governor — Project Memory (CLAUDE.md)
 
-> **Version**: v0.1.1 | **Updated**: 2026-01-30  
+> **Version**: v0.1.2 | **Updated**: 2026-01-31
 > 이 파일은 Claude Code가 프로젝트에서 항상 로드하는 **프로젝트 메모리**입니다.
 
 ## 한 줄 정의
@@ -89,6 +89,12 @@
 .ai/trace/trace.jsonl      # 공유 가능한 요약 Trace
 .ai/capsule/               # 프로젝트 항해지도(권장)
 ```
+
+### capsule 최소 스켈레톤 (compass init가 자동 생성)
+- `.ai/capsule/PROJECT.md`: Goal / What it is / Non-goals / Key commands / Repo map
+- `.ai/capsule/CONVENTIONS.md`: coding/test conventions
+- `.ai/capsule/STATUS.md`: Current focus / Risks / Next / Active spec pointer
+- (선택) `.ai/capsule/MAP.md`: 디렉터리별 위치 지도
 
 ### PIN 규격 (절대 고정)
 PIN에는 반드시 아래 5개만 포함:
@@ -187,6 +193,7 @@ PIN에는 반드시 아래 5개만 포함:
 
 | Version | Date       | Changes |
 |---------|------------|---------|
+| v0.1.2  | 2026-01-31 | MVP 결정 반영(CLI 구조/설치/Hook I/O/Trace 스키마 고정) - docs/01_decisions.md 참조 |
 | v0.1.1  | 2026-01-30 | PRD v0.1 정합성 반영(Top3 기본, 훅/설정 스키마 최신화, Trace/명령 보강) |
 | v0.1.0  | 2026-01-30 | Initial structure |
 

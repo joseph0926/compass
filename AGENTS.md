@@ -1,7 +1,7 @@
 # Compass Agents & Skills Specification (AGENTS.md)
 
-> **Version**: v0.1.1 | **Updated**: 2026-01-30  
-> 이 문서는 Compass가 제공(또는 생성)하는 **스킬(Commands), 서브에이전트(Subagents), 훅(Hooks)** 의 “실행 계약”입니다.
+> **Version**: v0.1.2 | **Updated**: 2026-01-31
+> 이 문서는 Compass가 제공(또는 생성)하는 **스킬(Commands), 서브에이전트(Subagents), 훅(Hooks)** 의 "실행 계약"입니다.
 
 ---
 
@@ -66,12 +66,13 @@
   "session_id": "abc",
   "event": "PostToolUse",
   "tool": "Edit",
+  "call_id": "tool_use_id",
   "files": ["src/auth/login.ts"],
   "result": "success",
   "tests": { "ran": true, "cmd": "pnpm test auth", "status": "pass" },
   "policy": { "complexity_score": 42, "gate_level": 2 },
   "automation": {
-    "hooks_fired": ["quality-gate"],
+    "hooks_fired": ["Stop/quality-gate"],
     "skills_used": ["spec-condense"]
   },
   "notes": "edited login flow"
@@ -371,7 +372,7 @@ output_format: |
       {
         "matcher": "*",
         "hooks": [
-          { "type": "command", "command": "compass hook pin-inject" }
+          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/node_modules/.bin/compass hook pin-inject" }
         ]
       }
     ]
@@ -383,8 +384,50 @@ output_format: |
 
 - 입력: **stdin으로 JSON** (tool/prompt 정보 포함)
 - 출력: `stdout`(plain text 또는 JSON), 종료 코드
-  - `exit 0`: 정상(선택적으로 JSON 제어 가능)
-  - `exit 2`: 차단(blocking error). `stderr`가 사용자/Claude에게 표시됨(단순 차단에 유용)
+
+#### Exit Code 규칙
+
+| Exit Code | 의미 | stdout |
+|-----------|------|--------|
+| 0 | 정상 (선택적으로 JSON 제어 가능) | JSON 또는 없음 |
+| 1 | 에러 (stdin 파싱 실패 등) | 없음 (stderr로 진단) |
+| 2 | 즉시 차단 | 없음 (stderr가 사용자/Claude에게 표시) |
+
+#### 이벤트별 출력 스키마
+
+##### UserPromptSubmit/PreCompact — `additionalContext` 주입
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "UserPromptSubmit",
+    "additionalContext": "<컨텍스트 내용>"
+  }
+}
+```
+
+##### Stop/SubagentStop — 계속 진행 강제
+```json
+{
+  "decision": "block",
+  "reason": "테스트가 실행되지 않았습니다. 테스트 실행 후 다시 종료하세요."
+}
+```
+- `decision: "block"` → Claude가 종료하지 않고 계속 진행하도록 유도
+- `decision` 없이 exit 0 → 정상 종료 허용
+
+##### PreToolUse — 권한 제어 (permissionDecision)
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "allow" | "deny" | "ask",
+    "permissionDecisionReason": "허용/거부/확인 이유",
+    "updatedInput": { "command": "수정된 명령" },
+    "additionalContext": "추가 컨텍스트"
+  }
+}
+```
+> **중요**: PreToolUse에서 `decision`/`reason` 필드는 deprecated입니다. 반드시 `hookSpecificOutput.permissionDecision`을 사용하세요.
 
 #### 공통 JSON 필드(옵션)
 ```json
@@ -480,6 +523,8 @@ PreToolUse는 특정 툴 실행만 제어하는 방식으로 출력합니다.
 }
 ```
 
+- **중요**: PreToolUse에서 `decision`/`reason`은 deprecated입니다. `permissionDecision`을 우선 사용하고, 호환 목적의 매핑은 `approve`→`allow`, `block`→`deny`로 처리합니다.
+
 ---
 
 ### 5.5 Optional trace hooks (가시성 강화)
@@ -557,6 +602,7 @@ export interface SkillDefinition {
 
 | Version | Date       | Changes |
 |---------|------------|---------|
+| v0.1.2  | 2026-01-31 | Hook I/O 규약 보강(이벤트별 출력 스키마, PreToolUse permissionDecision) |
 | v0.1.1  | 2026-01-30 | PRD v0.1 정합성 반영(Top3 기본, 명령/훅 계약 보강, 설정 스키마 최신화) |
 | v0.1.0  | 2026-01-30 | Initial specification |
 
