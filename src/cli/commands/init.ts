@@ -32,6 +32,13 @@ export const initCommand = new Command("init")
           console.log(`  ${file}`);
         }
       }
+      if (result.warnings.length > 0) {
+        console.log("");
+        console.log("Warnings:");
+        for (const warning of result.warnings) {
+          console.log(`  ⚠ ${warning}`);
+        }
+      }
     } else {
       console.error("✗ Initialization failed:", result.error);
       process.exit(1);

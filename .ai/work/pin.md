@@ -20,7 +20,7 @@ Claude Code 위에서 동작하는 "닫힌 고리 운영 레이어" MVP 구현
 
 ## Acceptance Criteria
 
-- [ ] `compass init`으로 .ai/, .claude/ 구조 생성
+- [x] `compass init`으로 .ai/, .claude/ 구조 생성
 - [ ] `compass spec new`로 스펙 생성 + PIN 자동 로드 확인
 - [ ] hooks가 세션 내에서 정상 동작 (UserPromptSubmit, PreCompact, Stop)
 - [ ] `/coach scan` 실행 시 후보 3개 출력
