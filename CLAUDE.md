@@ -5,7 +5,7 @@
 
 # Compass Coach & Governor — Project Memory (CLAUDE.md)
 
-> **Version**: v0.1.2 | **Updated**: 2026-01-31
+> **Version**: v0.1.3 | **Updated**: 2026-02-05
 > 이 파일은 Claude Code가 프로젝트에서 항상 로드하는 **프로젝트 메모리**입니다.
 
 ## 한 줄 정의
@@ -193,6 +193,7 @@ PIN에는 반드시 아래 5개만 포함:
 
 | Version | Date       | Changes |
 |---------|------------|---------|
+| v0.1.3  | 2026-02-05 | MVP-1 구현 반영(spec-sync additionalContext 방식, capsule sync, 패키지명 compass-ai) |
 | v0.1.2  | 2026-01-31 | MVP 결정 반영(CLI 구조/설치/Hook I/O/Trace 스키마 고정) - docs/01_decisions.md 참조 |
 | v0.1.1  | 2026-01-30 | PRD v0.1 정합성 반영(Top3 기본, 훅/설정 스키마 최신화, Trace/명령 보강) |
 | v0.1.0  | 2026-01-30 | Initial structure |

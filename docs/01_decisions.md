@@ -1,6 +1,6 @@
 # Compass MVP Decisions (v0.1)
 
-> **Updated**: 2026-01-31
+> **Updated**: 2026-02-05
 > 이 문서는 MVP 구현에 필요한 **설계 결정**을 고정합니다.
 
 ---
@@ -24,35 +24,46 @@
 
 ```
 /
-  package.json
+  package.json            # compass-ai
   tsconfig.json
   vitest.config.ts
   src/
     cli/
       index.ts           # CLI 엔트리포인트
       commands/
-        init.ts
-        spec.ts
-        trace.ts
-        coach.ts
-        guard.ts
-        hook.ts
+        init.ts          # compass init
+        spec.ts          # compass spec new
+        capsule.ts       # compass capsule sync       (MVP-1)
+        trace.ts         # compass trace *             (MVP-2)
+        coach.ts         # compass coach *             (MVP-3)
+        guard.ts         # compass guard *             (MVP-2)
     core/
+      types.ts           # 공유 타입
       spec/
-      trace/
-      coach/
-      guard/
+        generator.ts     # SPEC/PIN/current.json 생성
+        templates.ts     # 마크다운 템플릿
+      capsule/
+        reader.ts        # capsule/pin 파일 읽기
+        diff-collector.ts # git diff → DiffSignal
+        prompt-builder.ts # capsule 갱신 프롬프트 조립
+      trace/             # (MVP-2)
+      coach/             # (MVP-3)
+      guard/             # (MVP-2)
     hooks/
+      index.ts           # hook 라우터
       pin-inject.ts
       spec-sync.ts
-      quality-gate.ts
-      safety-guard.ts
+      quality-gate.ts    # (MVP-2)
+      safety-guard.ts    # (선택)
+  tests/
+    core/
+      spec/
+        generator.test.ts
+      capsule/
+        prompt-builder.test.ts
   .claude/
-    skills/
-      spec/SKILL.md
-      trace/SKILL.md
-      coach/SKILL.md
-      guard/SKILL.md
+    commands/
+      capsule-sync.md    # /capsule-sync 슬래시 커맨드
     settings.local.json  # 개인 실험 (gitignore)
   .ai/
     specs/
@@ -78,17 +89,17 @@
 
 ```bash
 # 새 프로젝트에서 처음 설치
-npx @kyh/compass init
+npx compass-ai init
 # 또는
-pnpm dlx @kyh/compass init
+pnpm dlx compass-ai init
 ```
 
 `init` 명령이 내부에서:
-1. `@kyh/compass`를 devDependency로 추가
-2. `.claude/settings.local.json` 생성 (hooks 등록)
-3. `.claude/skills/` 생성 (skill 마크다운)
-4. `.ai/` 스켈레톤 생성
-5. (선택) CLAUDE.md에 `@.ai/work/pin.md` import 라인 추가
+1. `.ai/` 스켈레톤 생성 (specs, work, trace, capsule)
+2. `.ai/capsule/*.md` 최소 템플릿 생성 (기존 파일 보호)
+3. CLAUDE.md에 `@.ai/work/pin.md` import 라인 추가 (없으면)
+4. (후순위) `.claude/settings.local.json` hooks 자동 등록
+5. (후순위) `.claude/skills/` 생성 (skill 마크다운)
 
 #### 이후 hooks 호출
 
@@ -115,8 +126,8 @@ pnpm dlx @kyh/compass init
 - `.ai/capsule/PROJECT.md` (최소 템플릿)
 - `.ai/capsule/CONVENTIONS.md` (최소 템플릿)
 - `.ai/capsule/STATUS.md` (최소 템플릿)
-- `.claude/skills/spec/SKILL.md` 등
-- `.claude/settings.local.json` (hooks 등록)
+- `.claude/settings.local.json` (hooks 등록) — **(후순위, 현재는 수동)**
+- `.claude/skills/` (skill 마크다운) — **(후순위)**
 
 #### `/spec new <title>` (작업 단위 스펙 생성)
 
@@ -161,8 +172,17 @@ pnpm dlx @kyh/compass init
 
 ##### PreCompact (spec-sync)
 
-- PIN/SPEC 파일 업데이트 후 exit 0
-- 출력 없음 (파일 변경이 목적)
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreCompact",
+    "additionalContext": "<compass-spec-sync>갱신 지시 내용</compass-spec-sync>"
+  }
+}
+```
+
+- PIN/SPEC 갱신 **지시**를 `additionalContext`로 출력 (Claude가 파일 갱신 수행)
+- 직접 파일을 변경하지 않음
 
 ##### Stop (quality-gate)
 
@@ -379,13 +399,15 @@ compass
 
 ## 9. MVP 로드맵
 
-### MVP-1: Spec Pin + 멀티세션 참조
+### MVP-1: Spec Pin + 멀티세션 참조 + Capsule Sync ✅ (2026-02-05)
 
-- [ ] `compass init` 구현
-- [ ] `compass spec new` 구현
-- [ ] `compass hook pin-inject` 구현
-- [ ] `compass hook spec-sync` 구현
-- [ ] CLAUDE.md import 패치 로직
+- [x] `compass init` 구현
+- [x] `compass spec new` 구현
+- [x] `compass hook pin-inject` 구현
+- [x] `compass hook spec-sync` 구현
+- [x] CLAUDE.md import 패치 로직
+- [x] `compass capsule sync` 구현 (diff + PIN 기반 프롬프트)
+- [x] `/capsule-sync` 슬래시 커맨드
 
 ### MVP-2: Trace + 관측
 
@@ -407,4 +429,5 @@ compass
 
 | Version | Date       | Changes |
 |---------|------------|---------|
+| v0.1.1  | 2026-02-05 | MVP-1 구현 반영 (패키지명, 디렉토리 구조, PreCompact 출력 방식, capsule sync 추가) |
 | v0.1.0  | 2026-01-31 | 초기 결정 문서 |

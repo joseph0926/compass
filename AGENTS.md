@@ -1,6 +1,6 @@
 # Compass Agents & Skills Specification (AGENTS.md)
 
-> **Version**: v0.1.2 | **Updated**: 2026-01-31
+> **Version**: v0.1.3 | **Updated**: 2026-02-05
 > 이 문서는 Compass가 제공(또는 생성)하는 **스킬(Commands), 서브에이전트(Subagents), 훅(Hooks)** 의 "실행 계약"입니다.
 
 ---
@@ -466,12 +466,23 @@ output_format: |
 ---
 
 #### (2) PreCompact — `spec-sync`
-- 목적: 컴팩트 전에 진행/결정 사항을 pin/spec에 반영
+- 목적: 컴팩트 전에 PIN/SPEC 갱신 **지시**를 `additionalContext`로 주입
 
 권장 동작:
-1) 최근 작업/결정 사항을 요약  
-2) `pin.md`는 얇게 업데이트(완료 체크/Acceptance 보강)  
-3) SPEC Change Log에 append
+1) `.ai/work/current.json`에서 활성 스펙/pin 경로 확인
+2) "PIN의 Goal/Must-have/Constraints/Acceptance Criteria를 갱신하라"는 지시를 `additionalContext`로 출력
+3) "SPEC Change Log에 이 세션의 진행을 추가하라"는 지시를 함께 출력
+4) 직접 파일을 수정하지 않음 — Claude가 지시에 따라 갱신
+
+(JSON 방식 예시)
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreCompact",
+    "additionalContext": "<compass-spec-sync>갱신 지시 내용</compass-spec-sync>"
+  }
+}
+```
 
 ---
 
@@ -602,6 +613,7 @@ export interface SkillDefinition {
 
 | Version | Date       | Changes |
 |---------|------------|---------|
+| v0.1.3  | 2026-02-05 | MVP-1 구현 반영(spec-sync additionalContext 방식으로 변경) |
 | v0.1.2  | 2026-01-31 | Hook I/O 규약 보강(이벤트별 출력 스키마, PreToolUse permissionDecision) |
 | v0.1.1  | 2026-01-30 | PRD v0.1 정합성 반영(Top3 기본, 명령/훅 계약 보강, 설정 스키마 최신화) |
 | v0.1.0  | 2026-01-30 | Initial specification |
