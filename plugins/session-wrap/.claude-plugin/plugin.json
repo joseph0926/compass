@@ -1,0 +1,10 @@
+{
+  "name": "session-wrap",
+  "version": "1.0.0",
+  "description": "세션 마무리 자동화 - 5개 에이전트가 CLAUDE.md 업데이트, 자동화 제안, 학습점 추출, 후속작업 정리",
+  "author": {
+    "name": "younghoonkim"
+  },
+  "license": "MIT",
+  "keywords": ["session", "wrap", "documentation", "automation", "agents"]
+}
