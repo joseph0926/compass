@@ -32,14 +32,35 @@ function getChangedFiles(cwd: string): ChangedFile[] {
 
     if (!output) return [];
 
-    return output.split("\n").map((line) => {
-      const [status, path] = line.split("\t");
-      return {
-        status: (status?.charAt(0) ?? "M") as ChangedFile["status"],
-        path: path ?? "",
-        category: categorizeFile(path ?? ""),
-      };
-    });
+    const results: ChangedFile[] = [];
+    for (const line of output.split("\n")) {
+      const parts = line.split("\t");
+      const statusCode = (parts[0]?.charAt(0) ?? "M") as ChangedFile["status"];
+
+      if (statusCode === "R" && parts.length >= 3) {
+        // Rename: R100\told\tnew → 기록 old(D) + new(A)
+        const oldPath = parts[1] ?? "";
+        const newPath = parts[2] ?? "";
+        results.push({
+          status: "D",
+          path: oldPath,
+          category: categorizeFile(oldPath),
+        });
+        results.push({
+          status: "A",
+          path: newPath,
+          category: categorizeFile(newPath),
+        });
+      } else {
+        const filePath = parts[1] ?? "";
+        results.push({
+          status: statusCode,
+          path: filePath,
+          category: categorizeFile(filePath),
+        });
+      }
+    }
+    return results;
   } catch {
     return [];
   }
@@ -82,7 +103,19 @@ function categorizeFile(path: string): FileCategory {
   return "other";
 }
 
-function extractNewDeps(cwd: string, files: ChangedFile[]): string[] {
+const DEP_SECTIONS = new Set([
+  "dependencies",
+  "devDependencies",
+  "peerDependencies",
+  "optionalDependencies",
+]);
+
+/**
+ * git diff 출력에서 dependency 섹션 내의 새 의존성만 추출
+ *
+ * export for testing
+ */
+export function extractNewDeps(cwd: string, files: ChangedFile[]): string[] {
   const pkgChanged = files.some(
     (f) => f.path === "package.json" && (f.status === "M" || f.status === "A"),
   );
@@ -95,18 +128,60 @@ function extractNewDeps(cwd: string, files: ChangedFile[]): string[] {
       timeout: 5000,
     });
 
-    const newDeps: string[] = [];
-    for (const line of diff.split("\n")) {
-      // +    "dep-name": "^1.0.0"
-      const match = line.match(/^\+\s+"([^"]+)":\s*"\^/);
-      if (match && match[1] && !match[1].startsWith("@types/")) {
-        newDeps.push(match[1]);
-      }
-    }
-    return newDeps;
+    return parseDepsFromDiff(diff);
   } catch {
     return [];
   }
+}
+
+/**
+ * unified diff 텍스트에서 dependency 섹션 내 추가된 패키지명만 추출
+ *
+ * export for testing
+ */
+export function parseDepsFromDiff(diff: string): string[] {
+  const newDeps: string[] = [];
+  let inDepSection = false;
+  let braceDepth = 0;
+
+  for (const line of diff.split("\n")) {
+    // context 또는 추가 라인에서 섹션 헤더 감지: "dependencies": {
+    const sectionMatch = line.match(/^[+ ]\s+"([^"]+)":\s*\{/);
+    if (sectionMatch && sectionMatch[1]) {
+      if (DEP_SECTIONS.has(sectionMatch[1])) {
+        inDepSection = true;
+        braceDepth = 1;
+        continue;
+      } else {
+        // 다른 섹션 시작 → dependency 섹션 종료
+        if (inDepSection) {
+          inDepSection = false;
+          braceDepth = 0;
+        }
+        continue;
+      }
+    }
+
+    if (!inDepSection) continue;
+
+    // brace depth 추적 (context/추가/제거 라인 모두)
+    if (line.match(/^[+ -]\s*\{/)) braceDepth++;
+    if (line.match(/^[+ -]\s*\}/)) {
+      braceDepth--;
+      if (braceDepth <= 0) {
+        inDepSection = false;
+        braceDepth = 0;
+        continue;
+      }
+    }
+
+    // 추가 라인에서 패키지명 추출
+    const depMatch = line.match(/^\+\s+"([^"]+)":\s*"/);
+    if (depMatch && depMatch[1] && !depMatch[1].startsWith("@types/")) {
+      newDeps.push(depMatch[1]);
+    }
+  }
+  return newDeps;
 }
 
 function detectStructureChange(files: ChangedFile[]): boolean {

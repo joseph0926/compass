@@ -1,7 +1,13 @@
 import { mkdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { CurrentJson } from "../types.js";
-import { specTemplate, pinTemplate } from "./templates.js";
+import {
+  specTemplate,
+  pinTemplate,
+  CAPSULE_PROJECT,
+  CAPSULE_CONVENTIONS,
+  CAPSULE_STATUS,
+} from "./templates.js";
 
 export interface GenerateSpecResult {
   specPath: string;
@@ -48,6 +54,9 @@ export function generateSpec(
   mkdirSync(join(cwd, ".ai/specs"), { recursive: true });
   mkdirSync(join(cwd, ".ai/work"), { recursive: true });
 
+  // capsule 자동 보정: 없으면 최소 템플릿 생성 (기존 파일 절대 덮어쓰지 않음)
+  ensureCapsule(cwd);
+
   // SPEC 파일
   const specRelPath = `.ai/specs/SPEC-${d}-${slug}.md`;
   const specFullPath = join(cwd, specRelPath);
@@ -75,4 +84,23 @@ export function generateSpec(
     pinPath: pinRelPath,
     currentJsonPath: currentJsonRelPath,
   };
+}
+
+const CAPSULE_FILES: Record<string, string> = {
+  ".ai/capsule/PROJECT.md": CAPSULE_PROJECT,
+  ".ai/capsule/CONVENTIONS.md": CAPSULE_CONVENTIONS,
+  ".ai/capsule/STATUS.md": CAPSULE_STATUS,
+};
+
+/**
+ * .ai/capsule/* 없으면 최소 템플릿 생성 (기존 파일 절대 덮어쓰지 않음)
+ */
+function ensureCapsule(cwd: string): void {
+  mkdirSync(join(cwd, ".ai/capsule"), { recursive: true });
+  for (const [path, content] of Object.entries(CAPSULE_FILES)) {
+    const fullPath = join(cwd, path);
+    if (!existsSync(fullPath)) {
+      writeFileSync(fullPath, content, "utf-8");
+    }
+  }
 }

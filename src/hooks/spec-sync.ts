@@ -1,13 +1,13 @@
 import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { resolve, join } from "node:path";
 import type { CurrentJson, HookOutput } from "../core/types.js";
+import { isSafePath } from "./pin-inject.js";
 
 /**
  * PreCompact hook: compact 전에 PIN/SPEC 갱신 지시 주입
  *
- * stdin: Claude Code Hook JSON
+ * stdin: Claude Code Hook JSON (파싱은 runHook에서 수행)
  * stdout: hookSpecificOutput JSON (활성 스펙 있을 때만)
- * exit 0: 항상
  */
 export function runSpecSync(cwd: string): void {
   const currentPath = join(cwd, ".ai/work/current.json");
@@ -20,8 +20,11 @@ export function runSpecSync(cwd: string): void {
     return;
   }
 
-  const pinPath = join(cwd, current.pin);
-  const specPath = join(cwd, current.active_spec);
+  // P0: 경로 traversal 방어
+  if (!isSafePath(cwd, current.pin) || !isSafePath(cwd, current.active_spec)) return;
+
+  const pinPath = resolve(cwd, current.pin);
+  const specPath = resolve(cwd, current.active_spec);
 
   if (!existsSync(pinPath) || !existsSync(specPath)) return;
 
