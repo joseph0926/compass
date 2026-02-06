@@ -2,11 +2,10 @@ name: Publish
 
 on:
   push:
-    tags: ['v*']
+    tags: ["v*"]
 
 jobs:
   publish:
-    if: vars.NPM_TRUSTED_PUBLISHING == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -16,9 +15,13 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
-          cache: 'pnpm'
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          cache: "pnpm"
+      - name: Update npm to latest
+        run: |
+          npm install -g npm@latest
+          npm --version
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm build
