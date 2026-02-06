@@ -1,6 +1,6 @@
 {
   "name": "compass-ai",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AI coding tool coach & governor — observability, diagnosis, recommendation, and verification in a closed loop",
   "type": "module",
   "bin": {
