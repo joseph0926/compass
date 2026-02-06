@@ -102,6 +102,20 @@ cat .ai/work/current.json
 .ai/specs/SPEC-20260206-login-page.md
 ```
 
+### 2-1. PIN 인터뷰로 자동 작성 (권장)
+
+`spec new` 직후 PIN 템플릿을 수동으로 채우는 대신, 인터뷰 모드로 작성할 수 있습니다.
+
+```bash
+compass pin interview
+```
+
+**확인 사항**:
+- 목표/타겟/CTA/Must-have/Constraints/Acceptance Criteria를 순차 질문
+- 저장 전 preview 출력 + `y` 확인 시에만 `.ai/work/pin.md` 반영
+- `current.json`의 `active_spec`를 Pointer로 자동 유지
+- 비대화형 셸(pipe/CI)에서는 실행되지 않음 (TTY 필요)
+
 ### 3. PIN 주입 Hook 테스트
 
 이 훅은 매 사용자 입력마다 PIN을 Claude Code 컨텍스트에 주입합니다.
@@ -354,13 +368,15 @@ pnpm build
 pnpm typecheck
 ```
 
-### 테스트 현황 (43 tests, 6 suites)
+### 테스트 현황 (54 tests, 8 suites)
 
 | 테스트 파일 | 테스트 수 | 커버 범위 |
 |-------------|-----------|-----------|
 | `tests/core/spec/generator.test.ts` | 7 | toSlug, todayDate, generateSpec |
 | `tests/core/spec/generator-capsule.test.ts` | 2 | capsule auto-heal |
 | `tests/cli/init.test.ts` | 4 | CLAUDE.md 자동 생성/패치/idempotent |
+| `tests/cli/pin.test.ts` | 3 | pin interview 서브커맨드/사전조건/TTY 에러 |
+| `tests/core/spec/pin-interview.test.ts` | 9 | PIN 인터뷰 파싱/목표문 생성/파일 포맷 |
 | `tests/core/capsule/prompt-builder.test.ts` | 9 | determineSectionUpdates, buildCapsulePrompt |
 | `tests/core/capsule/diff-collector.test.ts` | 13 | parseDepsFromDiff + collectDiff 통합(임시 git repo) |
 | `tests/hooks/pin-inject.test.ts` | 8 | isSafePath (traversal + symlink) |

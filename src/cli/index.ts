@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
-import { parseArgs } from "node:util";
 import { runInit } from "./commands/init.js";
 import { runSpec } from "./commands/spec.js";
 import { runHook } from "../hooks/index.js";
 import { runCapsule } from "./commands/capsule.js";
+import { runPin } from "./commands/pin.js";
 
-function main(): void {
+async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const command = args[0];
 
@@ -34,6 +34,10 @@ function main(): void {
       runCapsule(cwd, args.slice(1));
       break;
 
+    case "pin":
+      await runPin(cwd, args.slice(1));
+      break;
+
     default:
       console.error(`Unknown command: ${command}`);
       printUsage();
@@ -47,6 +51,7 @@ function printUsage(): void {
 Commands:
   init                    Initialize .ai/ skeleton & capsule templates
   spec new <title>        Create a new SPEC + PIN + current.json
+  pin interview           Fill PIN via guided Q&A
   hook pin-inject         [Hook] Inject PIN into context (UserPromptSubmit)
   hook spec-sync          [Hook] Sync PIN on compact (PreCompact)
   capsule sync            Generate capsule update prompt from diff + PIN
@@ -54,4 +59,8 @@ Commands:
 `);
 }
 
-main();
+main().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(message);
+  process.exitCode = 1;
+});

@@ -56,6 +56,7 @@ export function runInit(cwd: string): void {
   console.log("");
   console.log("Next steps:");
   console.log('  compass spec new "My Task"  — create your first spec & PIN');
+  console.log("  compass pin interview       — fill PIN via guided Q&A");
 }
 
 function ensureClaudeMdWithPinImport(cwd: string): ClaudeMdStatus {

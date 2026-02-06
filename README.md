@@ -51,6 +51,7 @@ pnpm build
 ```bash
 compass init
 compass spec new "<title>"
+compass pin interview
 compass hook pin-inject
 compass hook spec-sync
 compass capsule sync
