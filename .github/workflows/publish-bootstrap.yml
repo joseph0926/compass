@@ -28,6 +28,6 @@ jobs:
             exit 1
           fi
       - name: First-time publish (manual)
-        run: pnpm publish --no-git-checks --access public
+        run: pnpm publish --no-git-checks --access public --provenance=false
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
