@@ -9,16 +9,24 @@
 ### 설치
 
 ```bash
-# 1. 저장소 클론
-git clone <repo-url> && cd compass
+# [사용자] 기존 프로젝트에 Compass CLI만 추가
+pnpm add -D compass-ai
+# 또는
+npm i -D compass-ai
 
-# 2. 의존성 설치 + 빌드
+# 실행 확인
+pnpm exec compass --help
+# 또는
+npx compass-ai --help
+```
+
+```bash
+# [기여자] 저장소 클론 후 개발
+git clone <repo-url> && cd compass
 pnpm install && pnpm build
 
-# 3. CLI 동작 확인
+# 실행 확인
 ./dist/cli/index.js --help
-# 또는 npx로 실행
-npx compass-ai --help
 ```
 
 ### 요구 사항
@@ -42,7 +50,8 @@ compass init
 **확인 사항**:
 - `.ai/specs/`, `.ai/work/`, `.ai/trace/`, `.ai/capsule/` 디렉토리가 생성됨
 - `.ai/capsule/PROJECT.md`, `CONVENTIONS.md`, `STATUS.md` 템플릿이 생성됨
-- `CLAUDE.md` 파일 선두에 `@.ai/work/pin.md` import 라인이 추가됨
+- `CLAUDE.md`가 없으면 최소 템플릿이 자동 생성됨
+- `CLAUDE.md` 파일 선두에 `@.ai/work/pin.md` import 라인이 보장됨
 
 ```bash
 # 검증
@@ -165,7 +174,15 @@ Claude Code가 `compass capsule sync`를 실행하고, 출력 프롬프트에 �
 
 ### 7. Claude Code Hook 등록 (수동)
 
-실제로 Hook을 자동 실행하려면 `.claude/settings.local.json`에 등록합니다:
+실제로 Hook을 자동 실행하려면 `.claude/settings.local.json`에 Hook 설정을 넣습니다.
+
+#### Case A) 파일이 없는 경우: 새로 생성
+
+```bash
+mkdir -p .claude
+```
+
+`.claude/settings.local.json`:
 
 ```json
 {
@@ -196,7 +213,70 @@ Claude Code가 `compass capsule sync`를 실행하고, 출력 프롬프트에 �
 }
 ```
 
-등록 후 Claude Code를 새로 시작하면 Hook이 자동 실행됩니다.
+#### Case B) 기존 `.claude/settings.local.json`이 있는 경우: `hooks` 키만 병합
+
+예시(현재 프로젝트의 `permissions` 유지 + `hooks` 추가):
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Skill(ai-claude-code-aio)",
+      "Bash(python3:*)",
+      "Bash(wc:*)"
+    ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/node_modules/.bin/compass hook pin-inject"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/node_modules/.bin/compass hook spec-sync"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+#### 적용 체크리스트
+
+- [ ] `.claude/settings.local.json`이 유효한 JSON인지 확인
+- [ ] 기존 `permissions`/기타 설정이 유지됐는지 확인
+- [ ] `hooks.UserPromptSubmit`, `hooks.PreCompact`가 추가됐는지 확인
+- [ ] Claude Code를 재시작해 Hook 로딩 반영
+
+#### 동작 검증
+
+```bash
+echo '{}' | pnpm exec compass hook pin-inject
+echo '{}' | pnpm exec compass hook spec-sync
+```
+
+### 8. Codex 사용 (부분 지원)
+
+Codex 통합 상세는 `docs/04_codex-integration.md`를 참고하세요.
+
+- Codex는 현재 Claude Code처럼 Hook 이벤트를 직접 제공하지 않음
+- 따라서 PIN/spec-sync는 수동 루틴 또는 자동화 제안(문서) 방식으로 운용
+- `capsule sync`는 CLI 명령(`compass capsule sync`)으로 동일하게 사용 가능
 
 ---
 
@@ -274,14 +354,15 @@ pnpm build
 pnpm typecheck
 ```
 
-### 테스트 현황 (36 tests, 5 suites)
+### 테스트 현황 (43 tests, 6 suites)
 
 | 테스트 파일 | 테스트 수 | 커버 범위 |
 |-------------|-----------|-----------|
 | `tests/core/spec/generator.test.ts` | 7 | toSlug, todayDate, generateSpec |
 | `tests/core/spec/generator-capsule.test.ts` | 2 | capsule auto-heal |
+| `tests/cli/init.test.ts` | 4 | CLAUDE.md 자동 생성/패치/idempotent |
 | `tests/core/capsule/prompt-builder.test.ts` | 9 | determineSectionUpdates, buildCapsulePrompt |
-| `tests/core/capsule/diff-collector.test.ts` | 11 | parseDepsFromDiff, rename parsing |
+| `tests/core/capsule/diff-collector.test.ts` | 13 | parseDepsFromDiff + collectDiff 통합(임시 git repo) |
 | `tests/hooks/pin-inject.test.ts` | 8 | isSafePath (traversal + symlink) |
 
 ---

@@ -20,6 +20,12 @@ const CAPSULE_FILES: Record<string, string> = {
 };
 
 const CLAUDE_MD_IMPORT = "@.ai/work/pin.md";
+const CLAUDE_MD_MINIMAL_TEMPLATE = `# Project Memory (CLAUDE.md)
+
+> This file is loaded by Claude Code for project-level context.
+`;
+
+type ClaudeMdStatus = "created" | "patched" | "unchanged";
 
 export function runInit(cwd: string): void {
   // 1. 디렉토리 생성
@@ -35,24 +41,40 @@ export function runInit(cwd: string): void {
     }
   }
 
-  // 3. CLAUDE.md에 pin.md import 추가
-  patchClaudeMd(cwd);
+  // 3. CLAUDE.md 생성/패치 + pin.md import 보장
+  const claudeMdStatus = ensureClaudeMdWithPinImport(cwd);
 
   console.log("✔ Compass initialized");
   console.log("  Created: .ai/specs/, .ai/work/, .ai/trace/, .ai/capsule/");
+  if (claudeMdStatus === "created") {
+    console.log("  CLAUDE.md: created + @.ai/work/pin.md import added");
+  } else if (claudeMdStatus === "patched") {
+    console.log("  CLAUDE.md: @.ai/work/pin.md import added");
+  } else {
+    console.log("  CLAUDE.md: unchanged (PIN import already present)");
+  }
   console.log("");
   console.log("Next steps:");
   console.log('  compass spec new "My Task"  — create your first spec & PIN');
 }
 
-function patchClaudeMd(cwd: string): void {
+function ensureClaudeMdWithPinImport(cwd: string): ClaudeMdStatus {
   const claudeMdPath = join(cwd, "CLAUDE.md");
-  if (!existsSync(claudeMdPath)) return;
+  let status: ClaudeMdStatus = "unchanged";
+
+  if (!existsSync(claudeMdPath)) {
+    writeFileSync(claudeMdPath, CLAUDE_MD_MINIMAL_TEMPLATE, "utf-8");
+    status = "created";
+  }
 
   const content = readFileSync(claudeMdPath, "utf-8");
-  if (content.includes(CLAUDE_MD_IMPORT)) return;
+  if (content.includes(CLAUDE_MD_IMPORT)) return status;
 
   // import 라인이 없으면 파일 선두에 추가
   const patched = `${CLAUDE_MD_IMPORT}\n${content}`;
   writeFileSync(claudeMdPath, patched, "utf-8");
+  if (status !== "created") {
+    status = "patched";
+  }
+  return status;
 }

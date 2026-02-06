@@ -140,7 +140,8 @@ export function extractNewDeps(cwd: string, files: ChangedFile[]): string[] {
  * export for testing
  */
 export function parseDepsFromDiff(diff: string): string[] {
-  const newDeps: string[] = [];
+  const addedDeps = new Set<string>();
+  const removedDeps = new Set<string>();
   let inDepSection = false;
   let braceDepth = 0;
 
@@ -176,12 +177,20 @@ export function parseDepsFromDiff(diff: string): string[] {
     }
 
     // 추가 라인에서 패키지명 추출
-    const depMatch = line.match(/^\+\s+"([^"]+)":\s*"/);
-    if (depMatch && depMatch[1] && !depMatch[1].startsWith("@types/")) {
-      newDeps.push(depMatch[1]);
+    const addedMatch = line.match(/^\+\s+"([^"]+)":\s*"/);
+    if (addedMatch && addedMatch[1] && !addedMatch[1].startsWith("@types/")) {
+      addedDeps.add(addedMatch[1]);
+    }
+
+    // 제거/교체된 의존성은 신규가 아님 (같은 키가 +와 - 모두 있으면 제외)
+    const removedMatch = line.match(/^-\s+"([^"]+)":\s*"/);
+    if (removedMatch && removedMatch[1] && !removedMatch[1].startsWith("@types/")) {
+      removedDeps.add(removedMatch[1]);
     }
   }
-  return newDeps;
+
+  const onlyNewDeps = [...addedDeps].filter((dep) => !removedDeps.has(dep));
+  return onlyNewDeps;
 }
 
 function detectStructureChange(files: ChangedFile[]): boolean {

@@ -1,0 +1,33 @@
+name: Publish Bootstrap
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish-bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: pnpm test:run
+      - name: Fail if package already exists on npm
+        run: |
+          if npm view compass-ai version >/dev/null 2>&1; then
+            echo "::error::Package compass-ai already exists on npm. Bootstrap publish is only for first release."
+            exit 1
+          fi
+      - name: First-time publish (manual)
+        run: pnpm publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

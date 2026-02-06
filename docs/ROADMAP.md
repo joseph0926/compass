@@ -5,7 +5,7 @@
 
 ---
 
-## 현재 상태: MVP-1 Complete (v0.1.0)
+## 현재 상태: MVP-1 Complete (v0.1.1)
 
 MVP-1은 Compass의 **핵심 인프라**를 구축했습니다.
 
@@ -19,6 +19,16 @@ MVP-1은 Compass의 **핵심 인프라**를 구축했습니다.
 | 스펙 동기화 훅 | `compass hook spec-sync` | compact 전 PIN/SPEC 갱신 지시 |
 | Capsule 동기화 | `compass capsule sync` | diff + PIN 기반 capsule 갱신 프롬프트 |
 | 슬래시 커맨드 | `/capsule-sync` | Claude Code에서 capsule 동기화 실행 |
+
+### 문서/온보딩 정합성 보강 (2026-02-06)
+
+| 항목 | 상태 | 설명 |
+|------|------|------|
+| `CLAUDE.md` 자동 생성 보장 | 완료 | `compass init`에서 파일 부재 시 최소 템플릿 생성 + PIN import 삽입 |
+| Claude Code Hook 수동 등록 가이드 보강 | 완료 | 신규 생성/기존 파일 병합/재시작/검증 절차 명시 |
+| Codex 통합 가이드 | 완료 | `docs/04_codex-integration.md` 신설 (부분 지원 범위 + 운영 절차) |
+| 설치 경로 이원화 | 완료 | 사용자(`pnpm add -D`) / 기여자(`git clone`) 경로 분리 |
+| 루트 README | 완료 | Quick Start + 플랫폼 지원 매트릭스 + 문서 인덱스 제공 |
 
 ### MVP-1 품질 강화 (Refactoring, 2026-02-06)
 

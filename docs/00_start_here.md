@@ -38,9 +38,20 @@
 
 ---
 
-## 3) 플랫폼/기술 전제 (Claude Code 기반)
+## 3) 플랫폼/기술 전제 (Claude 우선, Codex 부분 지원)
 
-Compass는 Claude Code가 이미 제공하는 **공식 메커니즘** 위에서 동작하도록 설계합니다.
+Compass는 현재 Claude Code를 기준으로 설계/구현되어 있으며, Codex는 부분 지원합니다.
+
+### 플랫폼 지원 매트릭스 (v0.1)
+
+| 항목 | Claude Code | Codex |
+|---|---|---|
+| PIN 자동 로드 | `CLAUDE.md` import | 수동(AGENTS/rules) |
+| 입력 시 PIN 주입 | Hook(UserPromptSubmit) | 미지원 (수동/자동화 보조) |
+| compact 전 spec-sync | Hook(PreCompact) | 미지원 (수동/자동화 보조) |
+| capsule sync | `/capsule-sync`, CLI | CLI |
+
+> Codex 운영 절차는 `docs/04_codex-integration.md`에서 정의합니다.
 
 ### 3.1 Memory(지속 컨텍스트)
 

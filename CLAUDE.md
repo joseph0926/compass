@@ -8,6 +8,10 @@
 > **Version**: v0.1.3 | **Updated**: 2026-02-05
 > 이 파일은 Claude Code가 프로젝트에서 항상 로드하는 **프로젝트 메모리**입니다.
 
+> 플랫폼 범위:
+> - 이 문서는 **Claude Code 전용 메모리 파일**입니다.
+> - Codex 운용 방식은 `docs/04_codex-integration.md`를 참고합니다.
+
 ## 한 줄 정의
 
 **Compass**는 “AI 코딩 툴을 더 설치하는 번들러”가 아니라,  

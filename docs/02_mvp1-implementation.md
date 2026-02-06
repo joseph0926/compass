@@ -1,7 +1,7 @@
 # Compass MVP-1 구현 문서
 
-> **Version**: v0.1.0 | **Implemented**: 2026-02-05
-> Spec Pin 시스템(북극성) + Capsule Sync + Hook 통합
+> **Version**: v0.1.1 | **Updated**: 2026-02-06
+> Spec Pin 시스템(북극성) + Capsule Sync + Hook 통합 + 문서/온보딩 정합성 보강
 
 ---
 
@@ -87,6 +87,7 @@ compass/
    - `.ai/capsule/CONVENTIONS.md`
    - `.ai/capsule/STATUS.md`
 3. `CLAUDE.md`에 `@.ai/work/pin.md` import 라인 추가 (없으면)
+   - `CLAUDE.md`가 없으면 최소 템플릿을 생성한 뒤 import 라인 삽입
 
 **출력**:
 
@@ -274,27 +275,25 @@ pnpm test:run    # 한 번 실행
 pnpm test        # watch 모드
 ```
 
-### 테스트 현황 (16 tests, 2 suites)
+### 테스트 현황
 
-**`tests/core/spec/generator.test.ts`** (7 tests):
+핵심 테스트 파일:
 
-- `toSlug`: kebab-case 변환, 공백 정규화, 특수문자 제거
-- `todayDate`: YYYYMMDD 형식 검증
-- `generateSpec`: 파일 생성, 내용 검증, 디렉토리 자동 생성, 한국어 제목
-
-**`tests/core/capsule/prompt-builder.test.ts`** (9 tests):
-
-- `determineSectionUpdates`: STATUS 항상 포함, Tech Stack (deps), CONVENTIONS (config), Structure
-- `buildCapsulePrompt`: 변경 없음 메시지, PIN 포함, 파일 목록, capsule 내용, 새 deps
+- `tests/core/spec/generator.test.ts`
+- `tests/core/spec/generator-capsule.test.ts`
+- `tests/cli/init.test.ts`
+- `tests/core/capsule/prompt-builder.test.ts`
+- `tests/core/capsule/diff-collector.test.ts`
+- `tests/hooks/pin-inject.test.ts`
 
 ---
 
-## 검증 결과 (2026-02-05)
+## 검증 결과 (2026-02-06)
 
 ```
 ✔ pnpm build       — TypeScript 컴파일 성공
 ✔ pnpm typecheck   — 타입 에러 없음
-✔ pnpm test:run    — 16/16 passed (128ms)
+✔ pnpm test:run    — passed
 ```
 
 ### E2E 테스트 (수동)
@@ -336,7 +335,10 @@ Claude Code에서 `/capsule-sync` 입력 시:
 
 ### Hook 등록 (수동 — 미자동화)
 
-`.claude/settings.local.json`에 수동으로 추가:
+Case A) `.claude/settings.local.json` 신규 생성 또는  
+Case B) 기존 파일에 `hooks` 키만 병합.
+
+예시:
 
 ```json
 {
@@ -366,6 +368,22 @@ Claude Code에서 `/capsule-sync` 입력 시:
   }
 }
 ```
+
+적용 체크리스트:
+- JSON 문법 검증
+- 기존 `permissions`/기타 설정 유지 확인
+- Claude Code 재시작 후 동작 확인
+
+---
+
+## Codex 통합 현황 (문서화)
+
+MVP-1의 실행 메커니즘은 Claude Code 중심이며, Codex는 현재 부분 지원입니다.
+
+- Claude Code: `CLAUDE.md` import + hooks + `/capsule-sync`
+- Codex: `compass capsule sync` CLI 사용 가능, PIN/spec-sync는 수동 루틴/자동화 제안 기반
+
+상세는 `docs/04_codex-integration.md` 참고.
 
 ---
 

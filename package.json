@@ -6,17 +6,48 @@
   "bin": {
     "compass": "./dist/cli/index.js"
   },
+  "author": "joseph0926",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/joseph0926/compass.git"
+  },
+  "bugs": {
+    "url": "https://github.com/joseph0926/compass/issues"
+  },
+  "homepage": "https://github.com/joseph0926/compass#readme",
+  "keywords": [
+    "ai",
+    "claude-code",
+    "compass",
+    "spec",
+    "pin",
+    "observability",
+    "governor",
+    "coach"
+  ],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm build && pnpm typecheck && pnpm test:run"
   },
   "devDependencies": {
     "@types/node": "^25.2.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   },
+  "packageManager": "pnpm@10.28.2",
   "engines": {
     "node": ">=22"
   },

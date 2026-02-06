@@ -1,5 +1,12 @@
-import { describe, it, expect } from "vitest";
-import { parseDepsFromDiff } from "../../../src/core/capsule/diff-collector.js";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { execSync } from "node:child_process";
+import {
+  parseDepsFromDiff,
+  collectDiff,
+} from "../../../src/core/capsule/diff-collector.js";
 
 describe("parseDepsFromDiff", () => {
   it("extracts deps from dependencies section", () => {
@@ -144,5 +151,111 @@ describe("rename line parsing (integration)", () => {
     expect(parts.length).toBeGreaterThanOrEqual(3);
     expect(parts[1]).toBe("src/old.ts");
     expect(parts[2]).toBe("src/new.ts");
+  });
+});
+
+describe("collectDiff integration (real git repo)", () => {
+  let repoDir: string;
+
+  beforeEach(() => {
+    repoDir = mkdtempSync(join(tmpdir(), "compass-diff-integration-"));
+    execSync("git init -q", { cwd: repoDir });
+    execSync("git config user.email test@example.com", { cwd: repoDir });
+    execSync("git config user.name test-user", { cwd: repoDir });
+  });
+
+  afterEach(() => {
+    rmSync(repoDir, { recursive: true, force: true });
+  });
+
+  it("captures rename as old(D) + new(A)", () => {
+    mkdirSync(join(repoDir, "src"), { recursive: true });
+    writeFileSync(join(repoDir, "src/old.ts"), "export const a = 1;\n", "utf-8");
+    execSync("git add src/old.ts", { cwd: repoDir });
+    execSync("git commit -q -m init", { cwd: repoDir });
+
+    execSync("git mv src/old.ts src/new.ts", { cwd: repoDir });
+
+    const diff = collectDiff(repoDir);
+    expect(diff.changed_files).toEqual(
+      expect.arrayContaining([
+        { status: "D", path: "src/old.ts", category: "source" },
+        { status: "A", path: "src/new.ts", category: "source" },
+      ]),
+    );
+  });
+
+  it("extracts only dependency keys from package.json diff", () => {
+    writeFileSync(
+      join(repoDir, "package.json"),
+      JSON.stringify(
+        {
+          name: "demo",
+          version: "0.1.0",
+          scripts: { test: "vitest" },
+          dependencies: { react: "^19.0.0" },
+        },
+        null,
+        2,
+      ) + "\n",
+      "utf-8",
+    );
+    execSync("git add package.json", { cwd: repoDir });
+    execSync("git commit -q -m init", { cwd: repoDir });
+
+    writeFileSync(
+      join(repoDir, "package.json"),
+      JSON.stringify(
+        {
+          name: "demo",
+          version: "0.2.0",
+          scripts: { test: "vitest", build: "tsc" },
+          dependencies: { react: "^19.0.0", express: "^4.18.0" },
+        },
+        null,
+        2,
+      ) + "\n",
+      "utf-8",
+    );
+
+    const diff = collectDiff(repoDir);
+    expect(diff.new_deps).toEqual(["express"]);
+  });
+
+  it("does not include non-dependency keys in new_deps", () => {
+    writeFileSync(
+      join(repoDir, "package.json"),
+      JSON.stringify(
+        {
+          name: "demo",
+          version: "0.1.0",
+          scripts: { test: "vitest" },
+          dependencies: {},
+        },
+        null,
+        2,
+      ) + "\n",
+      "utf-8",
+    );
+    execSync("git add package.json", { cwd: repoDir });
+    execSync("git commit -q -m init", { cwd: repoDir });
+
+    writeFileSync(
+      join(repoDir, "package.json"),
+      JSON.stringify(
+        {
+          name: "demo",
+          version: "0.1.1",
+          scripts: { test: "vitest", lint: "eslint ." },
+          dependencies: {},
+        },
+        null,
+        2,
+      ) + "\n",
+      "utf-8",
+    );
+
+    const diff = collectDiff(repoDir);
+    expect(diff.new_deps).toEqual([]);
   });
 });
